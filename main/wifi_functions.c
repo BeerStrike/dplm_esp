@@ -1,7 +1,7 @@
 #include "wifi_functions.h"
 #include <string.h>
 #include "esp_log.h"
-
+#include "globals.h"
 void wifi_event_handler(void* arg, esp_event_base_t event_base,int32_t event_id, void* event_data)
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
@@ -24,8 +24,8 @@ void wifi_init(char *ssid,char *pass)
     //wifi_config_t wifi_config;
     wifi_config_t wifi_config = {
             .sta = {
-                .ssid = ":-)",
-                .password = "22081609"
+                .ssid = WIFI_SSID,
+                .password = WIFI_PASS
             },
         };
     /*
