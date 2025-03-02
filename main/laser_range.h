@@ -37,6 +37,5 @@ uint32_t laser_range_timeoutMicrosecondsToMclks(uint32_t timeout_period_us, uint
 uint16_t laser_range_decodeTimeout(uint16_t reg_val);
 void laser_range_performSingleRefCalibration(uint8_t vhv_init_byte);
 uint16_t laser_range_encodeTimeout(uint32_t timeout_mclks);
-void laser_range_askRangeSingleMillimeters();
 uint16_t laser_range_readRangeSingleMillimeters();
 #endif /* LASER_RANGE_H_ */

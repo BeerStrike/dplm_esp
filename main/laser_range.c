@@ -552,9 +552,9 @@ uint16_t laser_range_encodeTimeout(uint32_t timeout_mclks)
 	else { return 0; }
 }
 
-void laser_range_askRangeSingleMillimeters()
+uint16_t laser_range_readRangeSingleMillimeters()
 {
-	ESP_LOGI(LASER_RANGE_LOG_TAG,"Scan asked");
+	ESP_LOGI(LASER_RANGE_LOG_TAG,"Start reading");
 	esp_err_t err=write_byte_to_laser_range(0x80, 0x01);
 	if(err!=ESP_OK)
 		ESP_LOGE(LASER_RANGE_LOG_TAG,"Error I2C write: %d",err);
@@ -565,11 +565,6 @@ void laser_range_askRangeSingleMillimeters()
 	write_byte_to_laser_range(0xFF, 0x00);
 	write_byte_to_laser_range(0x80, 0x00);
 	write_byte_to_laser_range(SYSRANGE_START, 0x01);
-}
-
-uint16_t laser_range_readRangeSingleMillimeters()
-{
-	ESP_LOGI(LASER_RANGE_LOG_TAG,"Start reading");
 	uint8_t tmp;
 	esp_err_t err;
 	while (true){
