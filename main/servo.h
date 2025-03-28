@@ -5,4 +5,5 @@
 void servo_init();
 void set_yaw(float yaw);
 void set_pitch(float pitch);
+void servo_stop();
 #endif

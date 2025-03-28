@@ -2,6 +2,11 @@
 #include "lwip/sockets.h"
 #include "esp_log.h"
 
+void start_udp_server(){
+	if(xTaskCreate(udp_server_task,"Udp server task",4096,NULL,1,NULL)!=pdTRUE){
+	   	ESP_LOGE(UDP_SERVER_LOG_TAG,"Udp server start error");
+	}
+}
 int udp_server_init(){
 	int sct;
 	struct sockaddr_in  listening_addr;
@@ -47,4 +52,7 @@ void udp_server_task(void *params){
 	}
 }
 
+void stop_udp_server(){
+	//TODO ???
+}
 

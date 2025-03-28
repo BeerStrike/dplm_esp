@@ -7,11 +7,11 @@
 
 void servo_init(){
 	const uint32_t pin_num[2] = {
-	    13,
-	    15,
+	    12,
+	    14,
 	};
 	uint32_t duties[2] = {
-			500, 500
+			0, 0
 	};
 	float phase[2] = {
 	    0, 0
@@ -42,5 +42,11 @@ void set_pitch(float pitch){
 	esp_err_t err=pwm_start();
 	if(err!=ESP_OK)
 		ESP_LOGE(SERVO_LOG_TAG,"Error pwm start: %d",err);
+}
+
+void servo_stop(){
+	 esp_err_t err=pwm_stop(0);
+	 if(err!=ESP_OK)
+	 		ESP_LOGE(SERVO_LOG_TAG,"Error pwm stop: %d",err);
 }
 

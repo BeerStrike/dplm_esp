@@ -3,6 +3,11 @@
 #include "esp_log.h"
 #include "json_functions.h"
 
+void start_tcp_server(){
+    if(xTaskCreate(tcp_server_task,"Tcp server task",4096,NULL,1,NULL)!=pdTRUE){
+    	ESP_LOGE(TCP_SERVER_LOG_TAG,"Tcp server start error");
+    }
+}
 int tcp_server_init(){
 	ESP_LOGI(TCP_SERVER_LOG_TAG,"Tcp server started");
 	int sct;
@@ -51,9 +56,6 @@ void tcp_request_handle_cycle(int sct){
 		 }
 	}
 }
-void tcp_sender_task(void * params){
-
-}
 
 void tcp_server_task(void *params){
     int sct;
@@ -72,4 +74,8 @@ void tcp_server_task(void *params){
 			tcp_request_handle_cycle(sctaccept);
 		}
 	}
+}
+
+void stop_tcp_server(){
+	//TODO ???
 }
