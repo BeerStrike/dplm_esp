@@ -31,15 +31,17 @@ void scan_task(void * params){
 	float h=scprm->height;
 	char xdirect=0;
 	char zdirect=0;
+	int xmax=l/step;
+	int zmax=w/step;
 	int nx=0;
 	int nz=0;
 	float yaw=0;
 	float pitch=0;
 	free(params);
 	while(scan_task_handle){
-		if (nx >= 40 || nx <= 0) {
+		if (nx >= xmax*2 || nx <= 0) {
 			xdirect = !xdirect;
-			if (nz >= 40 || nz <= 0) {
+			if (nz >= zmax*2 || nz <= 0) {
 				zdirect = !zdirect;
 			}
 			if (zdirect)
@@ -51,26 +53,33 @@ void scan_task(void * params){
 			nx++;
 		else
 			nx--;
-		if (nz == 20 && xdirect == 0 && zdirect == 0 && nx >= 20)
+		if (nz == zmax && xdirect == 0 && zdirect == 0 && nx >= xmax)
 			continue;
-		if (nx <= 20 && nz <= 20) {
+		if (nx <= xmax && nz <= zmax) {
 			yaw = atan(sqrt((nx * step) * (nx * step) + (nz * step) * (nz * step)) / h) / M_PI * 180;
 			pitch = atan((nz * step) / (nx * step)) / M_PI * 180;
 		}
-		else if (nx > 20 && nz <= 20) {
-			yaw = (atan(sqrt(l * l + (nz * step) * (nz * step))/((40 - nx) * step))) / M_PI * 180;
+		else if (nx > xmax && nz <= zmax) {
+			yaw = (atan(sqrt(l * l + (nz * step) * (nz * step))/((2*xmax - nx) * step))) / M_PI * 180;
 			pitch = atan((nz * step) / l) / M_PI * 180;
 		}
-		else if (nx <= 20 && nz > 20) {
-			yaw = (M_PI / 2 - atan((40 - nz) * step / sqrt(w * w + (nx * step) * (nx * step)))) / M_PI * 180;
+		else if (nx <= xmax && nz > zmax) {
+			yaw = (M_PI / 2 - atan((2*zmax - nz) * step / sqrt(w * w + (nx * step) * (nx * step)))) / M_PI * 180;
 			pitch = atan(w / (nx * step)) / M_PI * 180;
 		}
 		else
 			continue;
 		set_yaw(yaw);
 		set_pitch(pitch);
-		float range=laser_range_readRangeSingleMillimeters();
-		char *payload=create_scan_result_json(range,yaw,pitch);
+		vTaskDelay(10);
+		int range=laser_range_readRangeSingleMillimeters();
+		if(laser_range_timeoutOccurred()||laser_range_last_status!=ESP_OK){
+			ESP_LOGE(SCAN_LOG_TAG,"Laser range timeout");
+		    laser_range_init(1);
+			continue;
+		}else
+			ESP_LOGI(SCAN_LOG_TAG,"Range=%d",range);
+		char *payload=create_scan_result_json(((float)range)/1000,yaw,pitch);
 		if(payload==NULL)
 			printf("Error NULL payload\n");
 		else{
@@ -97,3 +106,4 @@ int is_scan_active(){
 		return 0;
 }
 
+;

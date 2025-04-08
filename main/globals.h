@@ -2,8 +2,10 @@
 #define GLOBALS_H_
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#define WIFI_SSID      "Kal"
-#define WIFI_PASS      "07111917"
+
+char wifi_ssid[64];
+char wifi_pass[64];
+char scaner_name[64];
 
 int tcp_sct;
 

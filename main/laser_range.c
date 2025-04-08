@@ -23,7 +23,7 @@ void i2c_init(){
 	conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
 	conf.scl_io_num = 5;
 	conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
-	conf.clk_stretch_tick = 300;
+	conf.clk_stretch_tick = 1000;
 	err=i2c_driver_install(I2C_NUM_0,I2C_MODE_MASTER);
 	if(err!=ESP_OK)
 		ESP_LOGE(LASER_RANGE_LOG_TAG,"Error driver install: %d",err);
@@ -46,6 +46,7 @@ void laser_range_writeReg(uint8_t reg, uint8_t value)
 	if(err!=ESP_OK)
 		ESP_LOGE(LASER_RANGE_LOG_TAG,"I2C write err: %d",err);
 	i2c_cmd_link_delete(cmd);
+	laser_range_last_status=err;
     taskEXIT_CRITICAL();
 	//last_status = bus->endTransmission();
 }
@@ -64,6 +65,7 @@ void laser_range_writeReg16Bit(uint8_t reg, uint16_t value)
 	if(err!=ESP_OK)
 		ESP_LOGE(LASER_RANGE_LOG_TAG,"I2C write err: %d",err);
 	i2c_cmd_link_delete(cmd);
+	laser_range_last_status=err;
     taskEXIT_CRITICAL();
 }
 
@@ -83,6 +85,7 @@ void laser_range_writeReg32Bit(uint8_t reg, uint32_t value)
 	if(err!=ESP_OK)
 		ESP_LOGE(LASER_RANGE_LOG_TAG,"I2C write err: %d",err);
 	i2c_cmd_link_delete(cmd);
+	laser_range_last_status=err;
     taskEXIT_CRITICAL();
 }
 
@@ -102,7 +105,7 @@ uint8_t laser_range_readReg(uint8_t reg)
 	if(err!=ESP_OK)
 			ESP_LOGE(LASER_RANGE_LOG_TAG,"I2C read err: %d",err);i2c_master_cmd_begin(I2C_NUM_0, cmd, 1000 / portTICK_RATE_MS);
 	i2c_cmd_link_delete(cmd);
-	ESP_LOGI(LASER_RANGE_LOG_TAG,"%d",value);
+	laser_range_last_status=err;
     taskEXIT_CRITICAL();
 	return value;
 }
@@ -125,6 +128,7 @@ uint16_t laser_range_readReg16Bit(uint8_t reg)
 	  if(err!=ESP_OK)
 			ESP_LOGE(LASER_RANGE_LOG_TAG,"I2C read err: %d",err);
 	  i2c_cmd_link_delete(cmd);
+	laser_range_last_status=err;
 	  taskEXIT_CRITICAL();
 	  return value;
 }
@@ -147,9 +151,11 @@ uint32_t laser_range_readReg32Bit(uint8_t reg)
   i2c_master_stop(cmd);
   esp_err_t err=i2c_master_cmd_begin(I2C_NUM_0,cmd, 1000 / portTICK_RATE_MS);
   if(err!=ESP_OK)
-  		ESP_LOGE(LASER_RANGE_LOG_TAG,"I2C read err: %d",err);  i2c_cmd_link_delete(cmd);
+  		ESP_LOGE(LASER_RANGE_LOG_TAG,"I2C read err: %d",err);
+  i2c_cmd_link_delete(cmd);
+	laser_range_last_status=err;
+	  taskEXIT_CRITICAL();
   return value;
-  taskEXIT_CRITICAL();
 }
 
 void laser_range_writeMulti(uint8_t reg, uint8_t * src, uint8_t count)
@@ -165,6 +171,7 @@ void laser_range_writeMulti(uint8_t reg, uint8_t * src, uint8_t count)
 	if(err!=ESP_OK)
 		ESP_LOGE(LASER_RANGE_LOG_TAG,"I2C write err: %d",err);
 	i2c_cmd_link_delete(cmd);
+	laser_range_last_status=err;
     taskEXIT_CRITICAL();
 }
 
@@ -183,6 +190,7 @@ void laser_range_readMulti(uint8_t reg, uint8_t * dst, uint8_t count)
     esp_err_t err=i2c_master_cmd_begin(I2C_NUM_0,cmd, 1000 / portTICK_RATE_MS);
     if(err!=ESP_OK)
     	ESP_LOGE(LASER_RANGE_LOG_TAG,"I2C read err: %d",err);    i2c_cmd_link_delete(cmd);
+	laser_range_last_status=err;
     taskEXIT_CRITICAL();
 }
 

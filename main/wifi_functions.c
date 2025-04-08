@@ -20,21 +20,18 @@ void wifi_init(char *ssid,char *pass)
 
     esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL);
     //esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL);
+   wifi_config_t wifi_config;
+    /*
 
-    //wifi_config_t wifi_config;
     wifi_config_t wifi_config = {
             .sta = {
-                .ssid = WIFI_SSID,
-                .password = WIFI_PASS
+                .ssid = wifi_ssid,
+                .password = wifi_pass
             },
         };
-    /*
+        	*/
 	strcpy((char *)wifi_config.sta.ssid,ssid);
 	strcpy((char *)wifi_config.sta.password,pass);
-    if (strlen((char *)wifi_config.sta.password)) {
-        wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
-    }
-	*/
     esp_wifi_set_mode(WIFI_MODE_STA);
     esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config);
     esp_wifi_start();

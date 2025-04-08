@@ -102,7 +102,7 @@ uint8_t laser_range_did_timeout;
 uint16_t laser_range_timeout_start_ms;
 uint8_t laser_range_stop_variable;
 uint32_t laser_range_measurement_timing_budget_us;
-uint8_t laser_range_last_status;
+esp_err_t laser_range_last_status;
 void i2c_init();
 
 uint8_t laser_range_init(uint8_t io_2v8);
