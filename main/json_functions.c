@@ -4,6 +4,8 @@
 #include "globals.h"
 #include "scan.h"
 #include "esp_log.h"
+#include "flash.h"
+#include "wifi_functions.h"
 
 char *create_scan_result_json(float range,float yaw,float pitch){
 	cJSON *result_json=cJSON_CreateObject();
@@ -62,6 +64,7 @@ void json_recive_processor(char *jsonstr){
 
 char *create_settings_json(){
 	cJSON *json = cJSON_CreateObject();
+	//load_settings_from_flash();
 	cJSON_AddItemToObject(json, "Type", cJSON_CreateString("Settings response"));
 	cJSON_AddItemToObject(json, "Wi-fi SSID", cJSON_CreateString(wifi_ssid));
 	cJSON_AddItemToObject(json, "Wi-fi password", cJSON_CreateString(wifi_pass));
@@ -76,11 +79,14 @@ void set_settings_from_json(cJSON *json){
 	cJSON *wifi_pass_json = cJSON_GetObjectItemCaseSensitive(json, "Wi-fi password");
 	cJSON *scaner_name_json = cJSON_GetObjectItemCaseSensitive(json, "Scaner name");
 	if(wifi_ssid_json!=NULL&&wifi_pass_json!=NULL&&scaner_name_json!=NULL
-		&&cJSON_IsString(wifi_ssid_json)&&cJSON_IsString(wifi_pass_json)&&cJSON_IsString(scaner_name_json)){
+		&&cJSON_IsString(wifi_ssid_json)&&cJSON_IsString(wifi_pass_json)&&cJSON_IsString(scaner_name_json)&&
+		wifi_ssid_json->valuestring && wifi_pass_json->valuestring && scaner_name_json->valuestring
+		){
 		strcpy(wifi_ssid,wifi_ssid_json->valuestring);
 		strcpy(wifi_pass,wifi_pass_json->valuestring);
 		strcpy(scaner_name,scaner_name_json->valuestring);
-		//рестарт Wi-Fi
+		save_settings_to_flash();
+		wifi_init();
 	}
 
 }

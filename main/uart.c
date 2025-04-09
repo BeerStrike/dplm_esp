@@ -5,13 +5,14 @@
 
 void UART_event_task(){
 	uart_event_t event;
-    uint8_t rx_buff[RX_BUF_SIZE];
+    uint8_t *rx_buff = (uint8_t *) malloc(RX_BUF_SIZE);
 	while(1){
 		if (xQueueReceive(uart_queue, (void *)&event, (portTickType)portMAX_DELAY)) {
             switch (event.type) {
             	case UART_DATA:
             		 uart_read_bytes(UART_NUM_0, rx_buff, event.size, portMAX_DELAY);
             		 rx_buff[event.size]='\0';
+            		 //ESP_LOGI(UART_LOG_TAG,"%s",rx_buff);
             		 char * resp=uart_setup_json_handler((char *)rx_buff);
             		 if(resp!=NULL){
 						 uart_write_bytes(UART_NUM_0,resp,strlen(resp));
@@ -23,6 +24,7 @@ void UART_event_task(){
             }
 		}
 	}
+    free(rx_buff);
 	vTaskDelete(NULL);
 }
 
