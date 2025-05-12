@@ -1,9 +1,12 @@
 #ifndef SERVO_H_
 #define SERVO_H_
-#define	SERVO_LOG_TAG "Servo"
+#include "esp_err.h"
 
-void servo_init();
-void set_yaw(float yaw);
-void set_pitch(float pitch);
-void servo_stop();
+#define	SERVO_LOG_TAG "Servo"
+#define MIN_PWM 500
+#define MAX_PWM 1500
+esp_err_t servo_init();
+esp_err_t set_yaw(float yaw);
+esp_err_t set_pitch(float pitch);
+esp_err_t servo_stop();
 #endif

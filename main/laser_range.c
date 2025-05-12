@@ -1,5 +1,4 @@
 #include "laser_range.h"
-#include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/FreeRTOSConfig.h"
@@ -14,7 +13,7 @@
 #define laser_range_startTimeout() (laser_range_timeout_start_ms = xTaskGetTickCount()*portTICK_PERIOD_MS)
 #define laser_range_checkTimeoutExpired() (laser_range_io_timeout > 0 && ((uint16_t)(xTaskGetTickCount()*portTICK_PERIOD_MS - laser_range_timeout_start_ms) > laser_range_io_timeout))
 
-void i2c_init(){
+esp_err_t i2c_init(){
 	taskENTER_CRITICAL();
 	esp_err_t err;
 	i2c_config_t conf;
@@ -25,12 +24,19 @@ void i2c_init(){
 	conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
 	conf.clk_stretch_tick = 1000;
 	err=i2c_driver_install(I2C_NUM_0,I2C_MODE_MASTER);
-	if(err!=ESP_OK)
+	if(err!=ESP_OK){
 		ESP_LOGE(LASER_RANGE_LOG_TAG,"Error driver install: %d",err);
+	    taskEXIT_CRITICAL();
+		return err;
+	}
 	err=i2c_param_config(I2C_NUM_0, &conf);
-	if(err!=ESP_OK)
+	if(err!=ESP_OK){
 		ESP_LOGE(LASER_RANGE_LOG_TAG,"Error param conf: %d",err);
+	    taskEXIT_CRITICAL();
+	    return err;
+	}
     taskEXIT_CRITICAL();
+    return ESP_OK;
 }
 
 void laser_range_writeReg(uint8_t reg, uint8_t value)
@@ -306,25 +312,29 @@ void laser_range_startContinuous(uint32_t period_ms)
   {
 	  laser_range_writeReg(SYSRANGE_START, 0x02);
   }
+  ESP_LOGI(LASER_RANGE_LOG_TAG,"Started continious");
 }
 
-uint8_t laser_range_performSingleRefCalibration(uint8_t vhv_init_byte)
+esp_err_t laser_range_performSingleRefCalibration(uint8_t vhv_init_byte)
 {
   laser_range_writeReg(SYSRANGE_START, 0x01 | vhv_init_byte);
   laser_range_startTimeout();
   while ((laser_range_readReg(RESULT_INTERRUPT_STATUS) & 0x07) == 0)
   {
-    if (laser_range_checkTimeoutExpired()) { return false; }
+    if (laser_range_checkTimeoutExpired()) {
+  	  ESP_LOGE(LASER_RANGE_LOG_TAG,"Error: timeout");
+    	return ESP_FAIL;
+    }
   }
 
   laser_range_writeReg(SYSTEM_INTERRUPT_CLEAR, 0x01);
 
   laser_range_writeReg(SYSRANGE_START, 0x00);
-
-  return 1;
+  ESP_LOGI(LASER_RANGE_LOG_TAG,"Laser range perform single ref calibration sucsessful");
+  return ESP_OK;
 }
 
-uint8_t laser_range_getSpadInfo(uint8_t * count, uint8_t * type_is_aperture)
+esp_err_t laser_range_getSpadInfo(uint8_t * count, uint8_t * type_is_aperture)
 {
   uint8_t tmp;
 
@@ -344,7 +354,10 @@ uint8_t laser_range_getSpadInfo(uint8_t * count, uint8_t * type_is_aperture)
   laser_range_startTimeout();
   while (laser_range_readReg(0x83) == 0x00)
   {
-    if (laser_range_checkTimeoutExpired()) { return 0; }
+    if (laser_range_checkTimeoutExpired()) {
+  	  ESP_LOGE(LASER_RANGE_LOG_TAG,"Error: timeout");
+    	return ESP_FAIL;
+    }
   }
   laser_range_writeReg(0x83, 0x01);
   tmp = laser_range_readReg(0x92);
@@ -360,12 +373,12 @@ uint8_t laser_range_getSpadInfo(uint8_t * count, uint8_t * type_is_aperture)
 
   laser_range_writeReg(0xFF, 0x00);
   laser_range_writeReg(0x80, 0x00);
-
-  return 1;
+  return ESP_OK;
 }
 
 uint16_t laser_range_readRangeSingleMillimeters()
 {
+	  ESP_LOGI(LASER_RANGE_LOG_TAG,"Start reading single");
 	laser_range_writeReg(0x80, 0x01);
 	laser_range_writeReg(0xFF, 0x01);
 	laser_range_writeReg(0x00, 0x00);
@@ -381,7 +394,8 @@ uint16_t laser_range_readRangeSingleMillimeters()
     if (laser_range_checkTimeoutExpired())
     {
     	laser_range_did_timeout = 1;
-      return 65535;
+    	  ESP_LOGE(LASER_RANGE_LOG_TAG,"Error: timeout");
+    	  return 65535;
     }
   }
 
@@ -390,18 +404,21 @@ uint16_t laser_range_readRangeSingleMillimeters()
 
 uint16_t laser_range_readRangeContinuousMillimeters()
 {
+	  ESP_LOGI(LASER_RANGE_LOG_TAG,"Start reading continious");
 	laser_range_startTimeout();
   while ((laser_range_readReg(RESULT_INTERRUPT_STATUS) & 0x07) == 0)
   {
     if (laser_range_checkTimeoutExpired())
     {
     	laser_range_did_timeout = 1;
-      return 65535;
+    	ESP_LOGE(LASER_RANGE_LOG_TAG,"Error: timeout");
+    	return 65535;
     }
   }
 
   uint16_t range = laser_range_readReg16Bit(RESULT_RANGE_STATUS + 10);
   laser_range_writeReg(SYSTEM_INTERRUPT_CLEAR, 0x01);
+  ESP_LOGI(LASER_RANGE_LOG_TAG,"Read range: %d",range);
   return range;
 }
 
@@ -413,6 +430,7 @@ void laser_range_stopContinuous()
 	laser_range_writeReg(0x91, 0x00);
 	laser_range_writeReg(0x00, 0x01);
 	laser_range_writeReg(0xFF, 0x00);
+	ESP_LOGI(LASER_RANGE_LOG_TAG,"Laser range stoped continious");
 }
 
 uint8_t laser_range_getVcselPulsePeriod(enum laser_range_vcselPeriodType type)
@@ -428,7 +446,7 @@ uint8_t laser_range_getVcselPulsePeriod(enum laser_range_vcselPeriodType type)
   else { return 255; }
 }
 
-uint8_t laser_range_setVcselPulsePeriod(enum laser_range_vcselPeriodType type, uint8_t period_pclks)
+esp_err_t laser_range_setVcselPulsePeriod(enum laser_range_vcselPeriodType type, uint8_t period_pclks)
 {
   uint8_t vcsel_period_reg =  laser_range_encodeVcselPeriod(period_pclks);
   struct laser_range_SequenceStepEnables enables;
@@ -452,7 +470,8 @@ uint8_t laser_range_setVcselPulsePeriod(enum laser_range_vcselPeriodType type, u
     	laser_range_writeReg(PRE_RANGE_CONFIG_VALID_PHASE_HIGH, 0x50);
         break;
       default:
-        return 0;
+    	ESP_LOGE(LASER_RANGE_LOG_TAG,"Laser range set vcsel pulse period error");
+        return ESP_FAIL;
     }
     laser_range_writeReg(PRE_RANGE_CONFIG_VALID_PHASE_LOW, 0x08);
     laser_range_writeReg(PRE_RANGE_CONFIG_VCSEL_PERIOD, vcsel_period_reg);
@@ -503,7 +522,8 @@ uint8_t laser_range_setVcselPulsePeriod(enum laser_range_vcselPeriodType type, u
         laser_range_writeReg(0xFF, 0x00);
         break;
       default:
-        return 0;
+    	ESP_LOGE(LASER_RANGE_LOG_TAG,"Laser range set vcsel pulse period error");
+        return ESP_FAIL;
     }
 
     laser_range_writeReg(FINAL_RANGE_CONFIG_VCSEL_PERIOD, vcsel_period_reg);
@@ -514,14 +534,16 @@ uint8_t laser_range_setVcselPulsePeriod(enum laser_range_vcselPeriodType type, u
     }
     laser_range_writeReg16Bit(FINAL_RANGE_CONFIG_TIMEOUT_MACROP_HI,laser_range_encodeTimeout(new_final_range_timeout_mclks));
   } else{
-    return 0;
+	ESP_LOGE(LASER_RANGE_LOG_TAG,"Laser range set vcsel pulse period error");
+    return ESP_FAIL;
   }
   laser_range_setMeasurementTimingBudget(laser_range_measurement_timing_budget_us);
   uint8_t sequence_config = laser_range_readReg(SYSTEM_SEQUENCE_CONFIG);
   laser_range_writeReg(SYSTEM_SEQUENCE_CONFIG, 0x02);
   laser_range_performSingleRefCalibration(0x0);
   laser_range_writeReg(SYSTEM_SEQUENCE_CONFIG, sequence_config);
-  return 0;
+  ESP_LOGI(LASER_RANGE_LOG_TAG,"Laser range set vcsel pulse period sucsessful");
+  return ESP_OK;
 }
 
 uint32_t laser_range_getMeasurementTimingBudget(){
@@ -567,7 +589,7 @@ uint32_t laser_range_getMeasurementTimingBudget(){
   return budget_us;
 }
 
-uint8_t laser_range_setMeasurementTimingBudget(uint32_t budget_us)
+esp_err_t laser_range_setMeasurementTimingBudget(uint32_t budget_us)
 {
 	struct	laser_range_SequenceStepEnables enables;
 	struct laser_range_SequenceStepTimeouts timeouts;
@@ -609,7 +631,8 @@ uint8_t laser_range_setMeasurementTimingBudget(uint32_t budget_us)
     used_budget_us += FinalRangeOverhead;
     if (used_budget_us > budget_us)
     {
-      return 0;
+      ESP_LOGE(LASER_RANGE_LOG_TAG,"Laser range set measurement timing budget error");
+      return ESP_FAIL;
     }
 
     uint32_t final_range_timeout_us = budget_us - used_budget_us;
@@ -625,14 +648,19 @@ uint8_t laser_range_setMeasurementTimingBudget(uint32_t budget_us)
 
     laser_range_measurement_timing_budget_us = budget_us;
   }
-  return 1;
+  ESP_LOGI(LASER_RANGE_LOG_TAG,"Laser range set measurement timing budget sucsessful");
+  return ESP_OK;
 }
 
-uint8_t laser_range_setSignalRateLimit(float limit_Mcps)
+esp_err_t laser_range_setSignalRateLimit(float limit_Mcps)
 {
-  if (limit_Mcps < 0 || limit_Mcps > 511.99) { return 0; }
+  if (limit_Mcps < 0 || limit_Mcps > 511.99) {
+	  ESP_LOGE(LASER_RANGE_LOG_TAG,"Laser range set signal rate limit error");
+	  return ESP_FAIL;
+  }
   laser_range_writeReg16Bit(FINAL_RANGE_CONFIG_MIN_COUNT_RATE_RTN_LIMIT, limit_Mcps * (1 << 7));
-  return 1;
+  ESP_LOGI(LASER_RANGE_LOG_TAG,"Laser range set signal rate limit sucsessful");
+  return ESP_OK;
 }
 
 float laser_range_getSignalRateLimit()
@@ -640,11 +668,14 @@ float laser_range_getSignalRateLimit()
   return (float)laser_range_readReg16Bit(FINAL_RANGE_CONFIG_MIN_COUNT_RATE_RTN_LIMIT) / (1 << 7);
 }
 
-uint8_t laser_range_init(uint8_t io_2v8)
+esp_err_t laser_range_init(uint8_t io_2v8)
 {
 	laser_range_io_timeout=0;
 	laser_range_did_timeout=0;
-  if (laser_range_readReg(IDENTIFICATION_MODEL_ID) != 0xEE) { return 0; }
+  if (laser_range_readReg(IDENTIFICATION_MODEL_ID) != 0xEE) {
+	  ESP_LOGE(LASER_RANGE_LOG_TAG,"Laser range init error");
+	  return ESP_FAIL;
+  }
   if (io_2v8)
   {
     laser_range_writeReg(VHV_CONFIG_PAD_SCL_SDA__EXTSUP_HV,
@@ -663,7 +694,10 @@ uint8_t laser_range_init(uint8_t io_2v8)
   laser_range_writeReg(SYSTEM_SEQUENCE_CONFIG, 0xFF);
   uint8_t spad_count;
   uint8_t spad_type_is_aperture;
-  if (!laser_range_getSpadInfo(&spad_count, &spad_type_is_aperture)) { return 0; }
+  if (laser_range_getSpadInfo(&spad_count, &spad_type_is_aperture)!=ESP_OK) {
+	  ESP_LOGE(LASER_RANGE_LOG_TAG,"Laser range init error");
+	  return ESP_FAIL;
+  }
   uint8_t ref_spad_map[6];
   laser_range_readMulti(GLOBAL_CONFIG_SPAD_ENABLES_REF_0, ref_spad_map, 6);
   laser_range_writeReg(0xFF, 0x01);
@@ -789,12 +823,18 @@ uint8_t laser_range_init(uint8_t io_2v8)
   laser_range_writeReg(SYSTEM_SEQUENCE_CONFIG, 0xE8);
   laser_range_setMeasurementTimingBudget(laser_range_measurement_timing_budget_us);
   laser_range_writeReg(SYSTEM_SEQUENCE_CONFIG, 0x01);
-  if (!laser_range_performSingleRefCalibration(0x40)) { return 0; }
+  if (laser_range_performSingleRefCalibration(0x40)!=ESP_OK) {
+	  ESP_LOGE(LASER_RANGE_LOG_TAG,"Laser range init error");
+	  return ESP_FAIL;
+  }
   laser_range_writeReg(SYSTEM_SEQUENCE_CONFIG, 0x02);
-  if (!laser_range_performSingleRefCalibration(0x00)) { return 0; }
+  if (laser_range_performSingleRefCalibration(0x00)!=ESP_OK) {
+	  ESP_LOGE(LASER_RANGE_LOG_TAG,"Laser range init error");
+	  return ESP_FAIL;
+  }
   laser_range_writeReg(SYSTEM_SEQUENCE_CONFIG, 0xE8);
-
-  return 1;
+  ESP_LOGI(LASER_RANGE_LOG_TAG,"Laser range init sucsessful");
+  return ESP_OK;
 }
 
 

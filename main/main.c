@@ -1,31 +1,26 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-
-#include "esp_log.h"
-
-#include "wifi_functions.h"
-#include "udp_server.h"
-#include "tcp_server.h"
-#include "globals.h"
 #include "laser_range.h"
 #include "servo.h"
 #include "uart.h"
-#include <string.h>
 #include "flash.h"
+#include "wifi.h"
 
 void app_main()
 {
-    tcpip_adapter_init();
-    esp_event_loop_create_default();
-    UART_init();
-    i2c_init();
-    laser_range_init(1);
-    laser_range_setTimeout(1000);
-    servo_init();
-    load_settings_from_flash();
-	wifi_init();
-	start_udp_server();
-	start_tcp_server();
+	if(uart_init()==ESP_OK){
+		if(i2c_init()==ESP_OK){
+			if(servo_init()==ESP_OK){
+				if(wifi_init()==ESP_OK){
+					char wifi_ssid[32];
+					char wifi_pass[64];
+					if(load_wifi_settings_from_flash(wifi_ssid,wifi_pass)==ESP_OK){
+						wifi_start(wifi_ssid,wifi_pass);
+					}
+				}
+			}
+		}
+	}
     vTaskDelete(NULL);
 }
 

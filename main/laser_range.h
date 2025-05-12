@@ -1,7 +1,8 @@
 #ifndef LASER_RANGE_H_
 #define LASER_RANGE_H_
-#include "esp_system.h"
+#include "esp_err.h"
 #define LASER_RANGE_LOG_TAG "Laser range"
+
 enum laser_range_regAddr
     {
       SYSRANGE_START                              = 0x00,
@@ -103,9 +104,10 @@ uint16_t laser_range_timeout_start_ms;
 uint8_t laser_range_stop_variable;
 uint32_t laser_range_measurement_timing_budget_us;
 esp_err_t laser_range_last_status;
-void i2c_init();
 
-uint8_t laser_range_init(uint8_t io_2v8);
+esp_err_t i2c_init();
+
+esp_err_t laser_range_init(uint8_t io_2v8);
 
 void laser_range_writeReg(uint8_t reg, uint8_t value);
 void laser_range_writeReg16Bit(uint8_t reg, uint16_t value);
@@ -117,13 +119,13 @@ uint32_t laser_range_readReg32Bit(uint8_t reg);
 void laser_range_writeMulti(uint8_t reg, uint8_t  * src, uint8_t count);
 void laser_range_readMulti(uint8_t reg, uint8_t * dst, uint8_t count);
 
-uint8_t laser_range_setSignalRateLimit(float limit_Mcps);
+esp_err_t laser_range_setSignalRateLimit(float limit_Mcps);
 float laser_range_getSignalRateLimit();
 
-uint8_t laser_range_setMeasurementTimingBudget(uint32_t budget_us);
+esp_err_t laser_range_setMeasurementTimingBudget(uint32_t budget_us);
 uint32_t laser_range_getMeasurementTimingBudget();
 
-uint8_t laser_range_setVcselPulsePeriod(enum laser_range_vcselPeriodType type, uint8_t period_pclks);
+esp_err_t laser_range_setVcselPulsePeriod(enum laser_range_vcselPeriodType type, uint8_t period_pclks);
 uint8_t laser_range_getVcselPulsePeriod(enum laser_range_vcselPeriodType type);
 void laser_range_startContinuous(uint32_t period_ms);
 void laser_range_stopContinuous();
@@ -135,13 +137,12 @@ inline uint16_t laser_range_getTimeout() { return laser_range_io_timeout; }
 
 uint8_t laser_range_timeoutOccurred();
 
-
-uint8_t laser_range_getSpadInfo(uint8_t * count, uint8_t * type_is_aperture);
+esp_err_t laser_range_getSpadInfo(uint8_t * count, uint8_t * type_is_aperture);
 
 void laser_range_getSequenceStepEnables(struct laser_range_SequenceStepEnables * enables);
 void laser_range_getSequenceStepTimeouts(struct laser_range_SequenceStepEnables const * enables, struct laser_range_SequenceStepTimeouts * timeouts);
 
-uint8_t laser_range_performSingleRefCalibration(uint8_t vhv_init_byte);
+esp_err_t laser_range_performSingleRefCalibration(uint8_t vhv_init_byte);
 
 uint16_t laser_range_decodeTimeout(uint16_t value);
 uint16_t laser_range_encodeTimeout(uint32_t timeout_mclks);

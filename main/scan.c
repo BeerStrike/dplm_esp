@@ -3,100 +3,71 @@
 #include "laser_range.h"
 #include "servo.h"
 #include <math.h>
-#include "globals.h"
-
-#include "lwip/err.h"
-#include "lwip/sys.h"
-#include "lwip/sockets.h"
-
-#include "json_functions.h"
+#include "room_cords_math.h"
+#include "scan_cordinates_calculation.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "tcp_server.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
+TaskHandle_t scan_task_handle=NULL;
 
-void start_scan(struct scan_parameters params){
+esp_err_t start_scan(struct scan_parameters params){
 	struct scan_parameters *p=malloc(sizeof(struct scan_parameters ));
 	*p=params;
 	if(xTaskCreate(scan_task,"Scan task",4096,p,1,&scan_task_handle)!=pdTRUE){
 	   	ESP_LOGE(SCAN_LOG_TAG,"Error create scan task");
+	   	return ESP_FAIL;
 	 }
+	return ESP_OK;
+}
+
+esp_err_t stop_scan(){
+	if(scan_task_handle){
+		scan_task_handle=NULL;
+		//vTaskDelete(scan_task_handle);
+		return ESP_OK;
+	}else{
+	   	ESP_LOGE(SCAN_LOG_TAG,"scan not started");
+	   	return ESP_FAIL;
+	}
+}
+esp_err_t send_result(float x,float y,float h){
+	char *payload=create_scan_result_json(x,y,h);
+	if(payload){
+		send_to_pc(payload);
+		cJSON_free(payload);
+		return ESP_OK;
+	}else
+		return ESP_FAIL;
 }
 
 void scan_task(void * params){
 	ESP_LOGI(SCAN_LOG_TAG,"Start scanning");
 	struct scan_parameters *scprm=params;
-	float step=scprm->step;
-	float l=scprm->length;
-	float w=scprm->width;
-	float h=scprm->height;
-	char xdirect=0;
-	char zdirect=0;
-	int xmax=l/step;
-	int zmax=w/step;
-	int nx=0;
-	int nz=0;
-	float yaw=0;
-	float pitch=0;
-	free(params);
-	while(scan_task_handle){
-		if (nx >= xmax*2 || nx <= 0) {
-			xdirect = !xdirect;
-			if (nz >= zmax*2 || nz <= 0) {
-				zdirect = !zdirect;
-			}
-			if (zdirect)
-				nz++;
-			else
-				nz--;
-		}
-		if (xdirect)
-			nx++;
-		else
-			nx--;
-		if (nz == zmax && xdirect == 0 && zdirect == 0 && nx >= xmax)
-			continue;
-		if (nx <= xmax && nz <= zmax) {
-			yaw = atan(sqrt((nx * step) * (nx * step) + (nz * step) * (nz * step)) / h) / M_PI * 180;
-			pitch = atan((nz * step) / (nx * step)) / M_PI * 180;
-		}
-		else if (nx > xmax && nz <= zmax) {
-			yaw = (atan(sqrt(l * l + (nz * step) * (nz * step))/((2*xmax - nx) * step))) / M_PI * 180;
-			pitch = atan((nz * step) / l) / M_PI * 180;
-		}
-		else if (nx <= xmax && nz > zmax) {
-			yaw = (M_PI / 2 - atan((2*zmax - nz) * step / sqrt(w * w + (nx * step) * (nx * step)))) / M_PI * 180;
-			pitch = atan(w / (nx * step)) / M_PI * 180;
-		}
-		else
-			continue;
-		set_yaw(yaw);
-		set_pitch(pitch);
-		vTaskDelay(10);
-		int range=laser_range_readRangeSingleMillimeters();
-		if(laser_range_timeoutOccurred()||laser_range_last_status!=ESP_OK){
-			ESP_LOGE(SCAN_LOG_TAG,"Laser range timeout");
-		    laser_range_init(1);
-			continue;
-		}else
-			ESP_LOGI(SCAN_LOG_TAG,"Range=%d",range);
-		char *payload=create_scan_result_json(((float)range)/1000,yaw,pitch);
-		if(payload==NULL)
-			printf("Error NULL payload\n");
-		else{
-			if (send(tcp_sct,payload, strlen(payload), 0) < 0) {
-				printf("Error send udp\n");
-				scan_task_handle=NULL;
-			}else{
-				printf("Udp send\n");
-			}
-			cJSON_free(payload);
+	struct scan_status status;
+	laser_range_init(1);
+	laser_range_setTimeout(1000);
+	if(initalize_cords_calculation(scprm,&status)==ESP_OK){
+		while(scan_task_handle){
+			calculate_next_point_to_scan(&status);
+			set_yaw(calculate_yaw(&status.curr_point));
+			set_pitch(calculate_pitch(&status.curr_point));
+			vTaskDelay(1);
+			float range=((float)laser_range_readRangeSingleMillimeters())/1000+SCANER_RANGE_CORRECTION;
+			if(laser_range_timeoutOccurred()||laser_range_last_status!=ESP_OK)
+				ESP_LOGE(SCAN_LOG_TAG,"Laser range timeout");
+			struct point local_point;
+			calculate_real_point(&(status.curr_point),range,&local_point);
+			struct point global_point;
+			local_cords_to_global_cords(params,&local_point,&global_point);
+			send_result(global_point.x,global_point.y,global_point.h);
 		}
 	}
-	vTaskDelete(NULL);
-}
-
-void stop_scan(){
+	free(params);
 	scan_task_handle=NULL;
+	vTaskDelete(NULL);
 }
 
 int is_scan_active(){
@@ -106,4 +77,16 @@ int is_scan_active(){
 		return 0;
 }
 
-;
+char *create_scan_result_json(float x,float y,float h){
+	cJSON *result_json=cJSON_CreateObject();
+	cJSON_AddItemToObject(result_json, "Type", cJSON_CreateString("Scan result"));
+	cJSON_AddItemToObject(result_json, "X", cJSON_CreateNumber(x));
+	cJSON_AddItemToObject(result_json, "Y", cJSON_CreateNumber(y));
+	cJSON_AddItemToObject(result_json, "H", cJSON_CreateNumber(h));
+	char *str=cJSON_Print(result_json);
+	cJSON_Delete(result_json);
+	if(str==NULL)
+		ESP_LOGE(SCAN_LOG_TAG,"Error create scan json");
+	return str;
+}
+

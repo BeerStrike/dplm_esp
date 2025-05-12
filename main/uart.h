@@ -1,15 +1,11 @@
 #ifndef MAIN_UART_H_
 #define MAIN_UART_H_
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
+#include "esp_err.h"
 
-#define UART_LOG_TAG "uart_events"
+#define UART_LOG_TAG "UART"
 #define BUF_SIZE (1024)
-#define RX_BUF_SIZE (BUF_SIZE)
+#define RX_BUF_SIZE (1024)
 
-QueueHandle_t uart_queue;
-
-void UART_init();
+esp_err_t uart_init();
 
 #endif /* MAIN_UART_H_ */

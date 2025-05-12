@@ -7,6 +7,7 @@ void start_udp_server(){
 	   	ESP_LOGE(UDP_SERVER_LOG_TAG,"Udp server start error");
 	}
 }
+
 int udp_server_init(){
 	int sct;
 	struct sockaddr_in  listening_addr;
@@ -43,7 +44,7 @@ void udp_server_task(void *params){
 			ESP_LOGI(UDP_SERVER_LOG_TAG,"UDP recive error");
 		}else{
 			ESP_LOGI(UDP_SERVER_LOG_TAG,"Recive UDP");
-			char json[]="{\t\"type\": \"Find_response\"}";
+			char json[]="{\t\"Type\": \"Find response\"}";
             if(sendto(sct, json, strlen(json), 0, (struct sockaddr *)&sourceAddr, sizeof(sourceAddr))<0)
     			ESP_LOGE(UDP_SERVER_LOG_TAG,"UDP send error");
             else
