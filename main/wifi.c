@@ -5,7 +5,7 @@
 #include "udp_server.h"
 #include "tcp_server.h"
 #include "esp_wifi.h"
-
+#include "flash.h"
 
 void wifi_event_handler(void* arg, esp_event_base_t event_base,int32_t event_id, void* event_data)
 {
@@ -16,8 +16,11 @@ void wifi_event_handler(void* arg, esp_event_base_t event_base,int32_t event_id,
     	ESP_LOGI(WIFI_LOG_TAG,"Wifi stoped");
     }else if(event_base==WIFI_EVENT&&event_id==WIFI_EVENT_STA_CONNECTED){
     	ESP_LOGI(WIFI_LOG_TAG,"Wifi connected");
-    	start_udp_server();
-    	start_tcp_server();
+    	int16_t port;
+    	if(load_port_from_flash(&port)==ESP_OK){
+    		start_udp_server(port);
+    		start_tcp_server(port);
+    	}
     }else if(event_base==WIFI_EVENT&&event_id==WIFI_EVENT_STA_DISCONNECTED){
     	ESP_LOGI(WIFI_LOG_TAG,"Wifi disconnected");
         esp_wifi_connect();

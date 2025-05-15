@@ -6,8 +6,7 @@
 #include "flash.h"
 #include "wifi.h"
 
-void app_main()
-{
+void app_main(){
 	if(uart_init()==ESP_OK){
 		if(i2c_init()==ESP_OK){
 			if(servo_init()==ESP_OK){

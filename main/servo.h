@@ -5,6 +5,7 @@
 #define	SERVO_LOG_TAG "Servo"
 #define MIN_PWM 500
 #define MAX_PWM 1500
+
 esp_err_t servo_init();
 esp_err_t set_yaw(float yaw);
 esp_err_t set_pitch(float pitch);

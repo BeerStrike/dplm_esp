@@ -2,8 +2,6 @@
 #include "driver/pwm.h"
 #include "esp_err.h"
 #include "esp_log.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 
 esp_err_t servo_init(){
 	const uint32_t pin_num[2] = {

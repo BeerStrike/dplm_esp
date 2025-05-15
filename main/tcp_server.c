@@ -4,13 +4,16 @@
 #include "cJSON.h"
 #include "room_cords_math.h"
 #include "scan.h"
-int tcp_sct=0;
+#include "flash.h"
+int tcp_sct=-1;
+int pc_sct=-1;
 TaskHandle_t tcp_server_task_handle=NULL;
-char scaner_name[64];
+char scaner_name[64]="";
+esp_err_t tcp_server_init(int port);
 void scan_params_json_handler(cJSON * json);
 void state_request_json_handler(cJSON *json);
 void json_recive_processor(char *jsonstr);
-
+void tcp_server_task(void *params);
 
 void scan_params_json_handler(cJSON * json){
 	struct scan_parameters params;
@@ -53,10 +56,17 @@ void scan_params_json_handler(cJSON * json){
 void state_request_json_handler(cJSON *json){
 	cJSON *response_json=cJSON_CreateObject();
 	cJSON_AddItemToObject(response_json, "Type", cJSON_CreateString("State response"));
-	if(is_scan_active())
-		cJSON_AddItemToObject(response_json, "State", cJSON_CreateString("Working"));
-	else
-		cJSON_AddItemToObject(response_json, "State", cJSON_CreateString("Wait for params"));
+	switch(get_scan_state()){
+		case not_started:
+			cJSON_AddItemToObject(response_json, "State", cJSON_CreateString("Wait for params"));
+			break;
+		case working:
+			cJSON_AddItemToObject(response_json, "State", cJSON_CreateString("Working"));
+			break;
+		case paused:
+			cJSON_AddItemToObject(response_json, "State", cJSON_CreateString("Pause"));
+			break;
+	}
 	cJSON_AddItemToObject(response_json, "Scaner name", cJSON_CreateString(scaner_name));
 	char *jsonstr=cJSON_Print(response_json);
 	printf(jsonstr);
@@ -72,8 +82,13 @@ void json_recive_processor(char *jsonstr){
 		if(type!=NULL&&type->valuestring!=NULL){
 			if(strcmp(type->valuestring,"Scan parameters")==0)
 				scan_params_json_handler(json);
-			else if(type!=NULL&&type->valuestring!=NULL&&strcmp(type->valuestring,"State request")==0)
+			else if(strcmp(type->valuestring,"State request")==0)
 				state_request_json_handler(json);
+			else if(strcmp(type->valuestring,"Pause scan")==0)
+				pause_scan();
+			else if(strcmp(type->valuestring,"Continue scan")==0)
+				continue_scan();
+
 		}
 		cJSON_Delete(json);
 	}
@@ -81,34 +96,37 @@ void json_recive_processor(char *jsonstr){
 
 
 
-esp_err_t start_tcp_server(){
-	if(!tcp_server_task_handle){
-		if(xTaskCreate(tcp_server_task,"Tcp server task",4096,&tcp_server_task_handle,1,NULL)!=pdTRUE){
-			ESP_LOGE(TCP_SERVER_LOG_TAG,"Tcp server start error");
-			return ESP_FAIL;
-		}
-	}else{
+esp_err_t start_tcp_server(int port){
+	if(tcp_server_task_handle!=NULL){
 		ESP_LOGE(TCP_SERVER_LOG_TAG,"TCP server already started");
+		return ESP_FAIL;
+	}
+	if(tcp_server_init(port)!=ESP_OK){
+		ESP_LOGE(TCP_SERVER_LOG_TAG,"Tcp server init error");
+	}
+	if(xTaskCreate(tcp_server_task,"Tcp server task",4096,&tcp_server_task_handle,1,NULL)!=pdTRUE){
+		ESP_LOGE(TCP_SERVER_LOG_TAG,"Tcp server start error");
+		close(tcp_sct);
 		return ESP_FAIL;
 	}
 	return ESP_OK;
 }
 
 esp_err_t stop_tcp_server(){
-	if(tcp_server_task_handle){
-		vTaskDelete(tcp_server_task_handle);
-		tcp_server_task_handle=NULL;
-		ESP_LOGI(TCP_SERVER_LOG_TAG,"TCP server stopped");
-		return ESP_OK;
-	}else{
+	if(tcp_server_task_handle==NULL){
 		ESP_LOGE(TCP_SERVER_LOG_TAG,"TCP server already stopped");
 		return ESP_FAIL;
 	}
+	vTaskDelete(tcp_server_task_handle);
+	tcp_server_task_handle=NULL;
+	tcp_sct=-1;
+	ESP_LOGI(TCP_SERVER_LOG_TAG,"TCP server stopped");
+	return ESP_OK;
 }
 
 esp_err_t send_to_pc(char * payload){
-	if(tcp_sct){
-		if (send(tcp_sct,payload, strlen(payload), 0) < 0) {
+	if(pc_sct){
+		if (send(pc_sct,payload, strlen(payload), 0) < 0) {
 			ESP_LOGE(TCP_SERVER_LOG_TAG,"Error send tcp");
 			return ESP_FAIL;
 		}else{
@@ -121,33 +139,33 @@ esp_err_t send_to_pc(char * payload){
 	}
 }
 
-int tcp_server_init(){
+esp_err_t tcp_server_init(int port){
 	ESP_LOGI(TCP_SERVER_LOG_TAG,"TCP server started");
-	int sct;
 	struct sockaddr_in  listening_addr;
     memset(&listening_addr, 0, sizeof(listening_addr));
 	listening_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	listening_addr.sin_family = AF_INET;
-	listening_addr.sin_port = htons(TCP_SERVER_PORT);
+	listening_addr.sin_port = htons(port);
 
-	sct=socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
+	tcp_sct=socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
 
-	if(sct<0){
+	if(tcp_sct<0){
 		ESP_LOGE(TCP_SERVER_LOG_TAG,"Error create TCP socket");
-		return -1;
+		return ESP_FAIL;
 	}
-	if(bind(sct,(struct sockaddr *)&listening_addr,sizeof(listening_addr))<0){
-		close(sct);
+	if(bind(tcp_sct,(struct sockaddr *)&listening_addr,sizeof(listening_addr))<0){
+		close(tcp_sct);
 		ESP_LOGE(TCP_SERVER_LOG_TAG,"Error bind TCP socket");
-		return -1;
+		return ESP_FAIL;
 	}
-	if(listen(sct,1)<0){
-		close(sct);
+	if(listen(tcp_sct,1)<0){
+		close(tcp_sct);
 		ESP_LOGE(TCP_SERVER_LOG_TAG,"Error start listen TCP socket");
-		return -1;
+		return ESP_FAIL;
 	}
 	ESP_LOGI(TCP_SERVER_LOG_TAG,"Start listening TCP");
-	return sct;
+	load_scaner_name_from_flash(scaner_name);
+	return	ESP_OK;
 }
 
 void tcp_request_handle_cycle(int sct){
@@ -171,20 +189,15 @@ void tcp_request_handle_cycle(int sct){
 }
 
 void tcp_server_task(void *params){
-    int sct=sct=tcp_server_init();
-    if(sct==-1){
-		ESP_LOGE(TCP_SERVER_LOG_TAG,"Error create tcp socket");
-		vTaskDelete(NULL);
-    }
 	while(true){
 		struct sockaddr_in sourceAddr;
 		socklen_t socklen = sizeof(sourceAddr);
-		int sctaccept=accept(sct, (struct sockaddr *)&sourceAddr, &socklen);
+		int sctaccept=accept(tcp_sct, (struct sockaddr *)&sourceAddr, &socklen);
 		if(sctaccept<0)
 			ESP_LOGE(TCP_SERVER_LOG_TAG,"TCP accept error");
 		else{
 			ESP_LOGI(TCP_SERVER_LOG_TAG,"New TCP connection");
-			tcp_sct=sctaccept;
+			pc_sct=sctaccept;
 			tcp_request_handle_cycle(sctaccept);
 		}
 	}
