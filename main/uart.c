@@ -53,6 +53,11 @@ void set_settings_from_json(cJSON *json){
 		int16_t port=scaner_port_json->valueint;
 		save_port_to_flash(port);
 	}
+	cJSON *range_calibration_json = cJSON_GetObjectItemCaseSensitive(json, "Range calibration");
+	if(range_calibration_json!=NULL&&cJSON_IsNumber(range_calibration_json)){
+		int16_t range_calibration=range_calibration_json->valueint;
+		save_range_calibration_to_flash(range_calibration);
+	}
 }
 esp_err_t send_settings_json(){
 	cJSON *json = cJSON_CreateObject();
@@ -63,11 +68,14 @@ esp_err_t send_settings_json(){
 	load_scaner_name_from_flash(scaner_name);
 	int16_t scaner_port;
 	load_port_from_flash(&scaner_port);
+	int16_t range_calibration;
+	load_range_calibration_from_flash(&range_calibration);
 	cJSON_AddItemToObject(json, "Type", cJSON_CreateString("Settings response"));
 	cJSON_AddItemToObject(json, "Wi-fi SSID", cJSON_CreateString(wifi_ssid));
 	cJSON_AddItemToObject(json, "Wi-fi password", cJSON_CreateString(wifi_pass));
 	cJSON_AddItemToObject(json, "Scaner name", cJSON_CreateString(scaner_name));
 	cJSON_AddItemToObject(json, "Scaner port", cJSON_CreateNumber(scaner_port));
+	cJSON_AddItemToObject(json, "Range calibration", cJSON_CreateNumber(range_calibration));
 	char *str=cJSON_Print(json);
 	cJSON_Delete(json);
 	if(uart_write_bytes(UART_NUM_0,str,strlen(str))==-1){

@@ -5,7 +5,7 @@
 #include "driver/i2c.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
-
+#include "flash.h"
 #define LASER_RANGE_ADDRESS 0b0101001
 #define laser_range_decodeVcselPeriod(reg_val)      (((reg_val) + 1) << 1)
 #define laser_range_encodeVcselPeriod(period_pclks) (((period_pclks) >> 1) - 1)
@@ -19,6 +19,7 @@ uint16_t laser_range_timeout_start_ms;
 uint8_t laser_range_stop_variable;
 uint32_t laser_range_measurement_timing_budget_us;
 esp_err_t laser_range_last_status;
+int16_t laser_range_calibration;
 
 enum laser_range_regAddr
     {
@@ -510,6 +511,7 @@ uint16_t laser_range_readRangeContinuousMillimeters()
 
   uint16_t range = laser_range_readReg16Bit(RESULT_RANGE_STATUS + 10);
   laser_range_writeReg(SYSTEM_INTERRUPT_CLEAR, 0x01);
+  range+=laser_range_calibration;
   ESP_LOGI(LASER_RANGE_LOG_TAG,"Read range: %d",range);
   return range;
 }
@@ -929,6 +931,8 @@ esp_err_t laser_range_init(uint8_t io_2v8)
 	  return ESP_FAIL;
   }
   laser_range_writeReg(SYSTEM_SEQUENCE_CONFIG, 0xE8);
+  if(load_range_calibration_from_flash(&laser_range_calibration)!=ESP_OK)
+	  laser_range_calibration=0;
   ESP_LOGI(LASER_RANGE_LOG_TAG,"Laser range init sucsessful");
   return ESP_OK;
 }

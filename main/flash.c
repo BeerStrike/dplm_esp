@@ -136,3 +136,43 @@ esp_err_t save_port_to_flash(int16_t port){
 	ESP_LOGI(FLASH_LOG_TAG,"Port saved to flash");
 	return ESP_OK;
 }
+
+esp_err_t load_range_calibration_from_flash(int16_t *range_calibration){
+	nvs_handle nvs;
+	esp_err_t err = nvs_open("settings", NVS_READONLY, &nvs);
+	if (err != ESP_OK){
+		ESP_LOGE(FLASH_LOG_TAG, "Error flash open: %d",err);
+	    return err;
+	}
+	nvs_get_i16(nvs, "Range calib", range_calibration);
+	if (err != ESP_OK){
+		ESP_LOGE(FLASH_LOG_TAG, "Error read port: %d",err);
+		return err;
+	}
+	nvs_close(nvs);
+	ESP_LOGI(FLASH_LOG_TAG, "Range calibration loaded from flash");
+	return ESP_OK;
+}
+
+esp_err_t save_range_calibration_to_flash(int16_t range_calibration){
+	nvs_handle nvs;
+	esp_err_t err;
+	err = nvs_open("settings", NVS_READWRITE, &nvs);
+	if (err != ESP_OK){
+		ESP_LOGE(FLASH_LOG_TAG, "Error flash open: %d",err);
+		return err;
+	}
+	nvs_set_i16(nvs, "Range calib", range_calibration);
+	if (err != ESP_OK){
+		ESP_LOGE(FLASH_LOG_TAG, "Error write port: %d",err);
+		return err;
+	}
+	err=nvs_commit(nvs);
+	if (err != ESP_OK){
+		ESP_LOGE(FLASH_LOG_TAG, "Error flash commit: %d",err);
+		return err;
+	}
+	nvs_close(nvs);
+	ESP_LOGI(FLASH_LOG_TAG,"Range calibration saved to flash");
+	return ESP_OK;
+}

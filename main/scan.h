@@ -5,7 +5,6 @@
 #define SCANER_LENGTH 0.057f
 #define SCANER_WIDTH 0.023f
 #define SCANER_HEIGHT 0.034f
-#define SCANER_RANGE_CORRECTION 0.026f
 
 struct scan_parameters {
 	struct cords_limiter room_cords_limiter;

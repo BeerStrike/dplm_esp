@@ -60,23 +60,26 @@ void scan_task(void * params){
 	struct scan_status status;
 	laser_range_init(1);
 	laser_range_setTimeout(1000);
-	laser_range_setMeasurementTimingBudget(20000);
+	//laser_range_setMeasurementTimingBudget(200000);
 	if(initalize_cords_calculation(&scprm->room_cords_limiter,&scprm->scaner_pos,scprm->scaner_direction,scprm->scan_step,&status)==ESP_OK){
 		while(current_state!=not_started){
 			if(current_state==working){
 				calculate_next_point_to_scan(&status);
 				set_yaw(calculate_yaw(&status.curr_point));
 				set_pitch(calculate_pitch(&status.curr_point));
-				vTaskDelay(1);
-				float range=((float)laser_range_readRangeSingleMillimeters())/1000+SCANER_RANGE_CORRECTION;
-				if(laser_range_timeoutOccurred()||laser_range_get_last_status()!=ESP_OK)
+				vTaskDelay(10);
+				float range=((float)laser_range_readRangeSingleMillimeters())/1000;
+				if(laser_range_timeoutOccurred()||laser_range_get_last_status()!=ESP_OK){
 					ESP_LOGE(SCAN_LOG_TAG,"Laser range timeout");
+					continue;
+				}
 				struct point local_point;
 				calculate_real_point(&(status.curr_point),range,&local_point);
 				struct point global_point;
 				local_cords_to_global_cords(&scprm->scaner_pos,scprm->scaner_direction,&local_point,&global_point);
 				send_result(global_point.x,global_point.y,global_point.h);
-			}
+			}else
+				vTaskDelay(1);
 		}
 	}
 	free(params);
